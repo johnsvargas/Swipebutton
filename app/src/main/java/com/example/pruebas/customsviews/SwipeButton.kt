@@ -6,7 +6,11 @@ import android.annotation.TargetApi
 import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.Drawable
+import android.os.Build
 import android.util.AttributeSet
+import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View.OnTouchListener
 import android.view.ViewGroup
@@ -14,8 +18,15 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.ImageView
 import android.widget.RelativeLayout
 import android.widget.TextView
+import androidx.annotation.RequiresApi
+import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.ContextCompat
+import androidx.core.content.withStyledAttributes
+import androidx.core.view.marginBottom
 import com.example.pruebas.R
+import com.example.pruebas.dp
+import com.example.pruebas.textAppearance
+import java.util.*
 
 
 class SwipeButton : RelativeLayout {
@@ -24,77 +35,118 @@ class SwipeButton : RelativeLayout {
     private var initialX = 0f
     private var active = false
     private var initialButtonWidth = 0
-    private var centerText: TextView? = null
+    private var centerText: AppCompatTextView? = null
 
     private var disabledDrawable: Drawable? = null
     private var enabledDrawable: Drawable? = null
+    private var onClickListener:OnClickListener? = null
 
 
-    constructor(context: Context?) : this(context, null){
+    constructor(context: Context) : this(context, null){
         init(context,null,-1,-1)
     }
-    constructor(context: Context?, attrs: AttributeSet?) : this(context, attrs, 0){
+    constructor(context: Context, attrs: AttributeSet?) : this(context, attrs, 0){
         init(context,attrs,-1,-1)
     }
 
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
         init(context,attrs,defStyleAttr,-1)
     }
 
     @TargetApi(21)
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int): super(context, attrs, defStyleAttr, defStyleRes){
+    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int): super(context, attrs, defStyleAttr, defStyleRes){
         init(context, attrs, defStyleAttr, defStyleRes)
     }
-    private fun init(context: Context?, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) {
-        val background = RelativeLayout(context)
 
-        val layoutParamsView = LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+    private fun init(context: Context, attrs: AttributeSet?, defStyleAttr: Int, defStyleRes: Int) {
 
-        layoutParamsView.addRule(CENTER_IN_PARENT, TRUE)
+        context.withStyledAttributes(set = attrs, attrs = R.styleable.SwipeButton) {
+            val textTitleStyleAttribute: Int = this.getResourceId(R.styleable.SwipeButton_title_text_style, 0)
 
-        background.background = ContextCompat.getDrawable(context!!, R.drawable.shape_rounded)
+            val titleString = if(this.getString(R.styleable.SwipeButton_title).isNullOrEmpty()) "Button"
+            else this.getString(R.styleable.SwipeButton_title)
 
-        addView(background, layoutParamsView)
+            val textAllCaps = this.getBoolean(R.styleable.SwipeButton_android_textAllCaps,true)
 
-        val centerText = TextView(context)
-        this.centerText = centerText
+            val drawableIcon = this.getDrawable(R.styleable.SwipeButton_icon_to_slide)
 
-        val layoutParams = LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+            val backgroundColor = this.getColor(R.styleable.SwipeButton_button_background_color,0)
 
-        layoutParams.addRule(CENTER_IN_PARENT, TRUE)
-        centerText.text = "Desliza para terminar" //add any text you need
+            val swipeButtonBackgroundColor = this.getColor(R.styleable.SwipeButton_swipe_button_background_color,0)
 
-        centerText.setTextColor(Color.WHITE)
-        centerText.setPadding(35, 35, 35, 35)
-        background.addView(centerText, layoutParams)
 
-        //add moving icon
-        val swipeButton = ImageView(context)
-        slidingButton = swipeButton
 
-        disabledDrawable = ContextCompat.getDrawable(getContext(), R.drawable.ic_ekt_arrow)
-        enabledDrawable = ContextCompat.getDrawable(getContext(), R.drawable.ic_ekt_arrow)
+            val background = RelativeLayout(context)
 
-        slidingButton.setImageDrawable(disabledDrawable)
-        slidingButton.setPadding(40, 30, 40, 30)
+            val layoutParamsView = LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    45.dp
+            )
 
-        val layoutParamsButton = LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT)
+            layoutParamsView.addRule(CENTER_IN_PARENT, TRUE)
+            background.background =  ContextCompat.getDrawable(context, R.drawable.shape_rounded)
+            if(backgroundColor != 0){
+                background.background.setTint(backgroundColor)
+            }
+            addView(background, layoutParamsView)
 
-        layoutParamsButton.addRule(ALIGN_PARENT_LEFT, TRUE)
-        layoutParamsButton.addRule(CENTER_VERTICAL, TRUE)
-        swipeButton.background = ContextCompat.getDrawable(context, R.drawable.shape_button)
-        swipeButton.setImageDrawable(disabledDrawable)
-        addView(swipeButton, layoutParamsButton)
+            val centerText = AppCompatTextView(context)
 
-        setOnTouchListener(getButtonTouchListener())
+            this@SwipeButton.centerText = centerText
+
+            val layoutParams = LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+
+            layoutParams.addRule(CENTER_IN_PARENT, TRUE)
+            centerText.text = if(textAllCaps) titleString?.toUpperCase(Locale.ROOT) else titleString
+
+            if(textTitleStyleAttribute != 0){
+                centerText.textAppearance(textTitleStyleAttribute)
+            }else{
+                centerText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                centerText.setTextColor(Color.WHITE)
+            }
+            this@SwipeButton.centerText?.setPadding(8.dp, 8.dp, 8.dp, 8.dp)
+            background.addView(centerText, layoutParams)
+
+            //add moving icon
+            val swipeButton = ImageView(context)
+            slidingButton = swipeButton
+
+            if(drawableIcon != null){
+                disabledDrawable = drawableIcon
+                enabledDrawable = drawableIcon
+            }else{
+                disabledDrawable = ContextCompat.getDrawable(getContext(), R.drawable.ic_ekt_arrow)
+                enabledDrawable = ContextCompat.getDrawable(getContext(), R.drawable.ic_ekt_arrow)
+            }
+
+
+            slidingButton.setImageDrawable(disabledDrawable)
+            slidingButton.setPadding(20.dp, 10.dp, 20.dp, 10.dp)
+
+            val layoutParamsButton = LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT)
+
+            layoutParamsButton.addRule(ALIGN_PARENT_LEFT, TRUE)
+            layoutParamsButton.addRule(CENTER_VERTICAL, TRUE)
+            swipeButton.background = ContextCompat.getDrawable(context, R.drawable.shape_button)
+
+            if(swipeButtonBackgroundColor != 0){
+                swipeButton.background.setTint(swipeButtonBackgroundColor)
+            }
+            swipeButton.setImageDrawable(disabledDrawable)
+            background.addView(swipeButton, layoutParamsButton)
+
+            setOnTouchListener(getButtonTouchListener())
+        }
+    }
+
+    fun setTextStyleText(style: Int){
+        centerText = AppCompatTextView(context)
 
     }
 
@@ -127,13 +179,15 @@ class SwipeButton : RelativeLayout {
                 }
                 MotionEvent.ACTION_UP -> {
                     //Release logic here
+                    initialX = 0f
                     if (active) {
                         collapseButton()
                     } else {
                         initialButtonWidth = slidingButton.width
 
-                        if (slidingButton.x + slidingButton.width > width * 0.85) {
+                        if (slidingButton.x + slidingButton.width > width * 0.95) {
                             expandButton()
+                            onClickListener?.onClick(this)
                         } else {
                             moveButtonBack()
                         }
@@ -210,4 +264,10 @@ class SwipeButton : RelativeLayout {
         animatorSet.playTogether(objectAnimator, positionAnimator)
         animatorSet.start()
     }
+
+    override fun setOnClickListener(l: OnClickListener?) {
+        //super.setOnClickListener(l)
+        onClickListener = l
+    }
+
 }
